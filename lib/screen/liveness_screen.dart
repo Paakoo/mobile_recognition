@@ -85,7 +85,7 @@ class _LivenessScreenState extends State<LivenessScreen>
               compressedPhotos.add(bytes);
             }   
             try {
-              final uri = Uri.parse("http://192.168.1.13:5000/api/upload");
+              final uri = Uri.parse("http://192.168.1.20:5000/api/upload");
               final request = http.MultipartRequest('POST', uri);   
               request.headers.addAll({
                 'Accept': 'application/json',
@@ -97,7 +97,7 @@ class _LivenessScreenState extends State<LivenessScreen>
                 http.MultipartFile.fromBytes(
                   'file', 
                   compressedPhotos.last,
-                  filename: 'smile.jpg',
+                  filename: 'upload.jpg',
                   contentType: MediaType('image', 'jpeg'),
                 ),
               );

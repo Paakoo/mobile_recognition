@@ -44,12 +44,12 @@ class ResultScreen extends StatelessWidget {
                     SizedBox(height: 10),
                     if (isSuccess) ...[
                       Text(
-                        'Name: ${result['name'] ?? 'Unknown'}',
+                        'Name: ${result['data']['matched_name'] ?? 'Unknown'}',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       SizedBox(height: 10),
                       Text(
-                        'Confidence: ${(result['confidence'] * 100).toStringAsFixed(2)}%',
+                        'Confidence: ${(result['data']['confidence'] * 100).toStringAsFixed(2)}%',
                         style: Theme.of(context).textTheme.bodyLarge,
                       ),
                     ],

@@ -1,8 +1,6 @@
-// login_screen.dart
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -11,131 +9,113 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _storage = FlutterSecureStorage();
-  bool _isLoading = false;
 
-  Future<void> _login() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() => _isLoading = true);
+  // Fungsi untuk login dan mendapatkan token
+  Future<void> login() async {
+    final email = _emailController.text;
+    final password = _passwordController.text;
 
-    try {
-      final response = await http.post(
-        Uri.parse('http://192.168.1.9:5000/api/login'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'email': _emailController.text,
-          'password': _passwordController.text,
-        }),
-      );
+    final response = await http.post(
+      Uri.parse('http://192.168.1.9:5000/api/login'),  // Ganti dengan URL backend Anda
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({'email': email, 'password': password}),
+    );
 
+    if (response.statusCode == 200) {
       final data = json.decode(response.body);
-      print('Login Response: $data'); // Debug log
+      final token = data['data']['token'];
 
-      if (data['status'] == 'success' && data['data'] != null) {
-        final prefs = await SharedPreferences.getInstance();
-        final userData = data['data'];
-        
-        // Format and store token correctly
-        final String token = userData['token']?.toString() ?? '';
-        final String tokenType = userData['token_type']?.toString() ?? 'Bearer';
-        
-        // Store token with proper formatting
-        await prefs.setString('token', token);
-        await prefs.setString('token_type', tokenType);
-        await prefs.setString('email', userData['email']?.toString() ?? '');
-        await prefs.setInt('id_karyawan', userData['id_karyawan'] ?? 0);
-        await prefs.setString('nama', userData['nama']?.toString() ?? '');
-        
-        print('Stored token format: $tokenType $token');
+      // Simpan token di secure storage
+      await _storage.write(key: 'jwt_token', value: token);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Login successful')));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Invalid credentials')));
+    }
+    Navigator.pushReplacementNamed(context, '/home');
+  }
 
-        // Handle nullable expires_in
-        if (userData['expires_in'] != null) {
-          await prefs.setInt('expires_in', userData['expires_in']);
-        }
+  // Fungsi untuk mengakses route yang dilindungi menggunakan token
+  Future<void> getProtectedData() async {
+    final token = await _storage.read(key: 'jwt_token');
 
-        // Verify token was stored
-        final storedToken = prefs.getString('token');
-        final storedTokenType = prefs.getString('token_type');
+    final response = await http.get(
+      Uri.parse('http://192.168.1.11:5000/api/protected'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+    print('JWT Token: $token');
+    print('Authirization: $token');
+    
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Logged in as: ${data['logged_in_as']}')));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Token is invalid')));
+    }
+    print('Response Status: ${response.statusCode}');
+    print('Response Body: ${response.body}');
+  }
 
-        if (storedToken == null || storedTokenType == null) {
-          throw Exception('Failed to store token data');
-        }
-
-        print('Token stored successfully: ${data['data']['token_type']} ${data['data']['token']}');
-        Navigator.pushReplacementNamed(context, '/home');
-      } else {
-        throw Exception(data['message'] ?? 'Login failed');
-      }
-    } catch (e) {
-      print('Login error: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Login failed: ${e.toString()}')),
-      );
-    } finally {
-      setState(() => _isLoading = false);
+  // Fungsi untuk melihat token yang disimpan di secure storage
+  Future<void> viewToken() async {
+    final token = await _storage.read(key: 'jwt_token');
+    if (token != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Token: $token')));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('No token found')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Login'),
-      ),
+      appBar: AppBar(title: Text('Login')),
       body: Padding(
-        padding: EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              TextFormField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: InputDecoration(
-                  labelText: 'Email',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.email),
-                ),
-                validator: (value) {
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            TextFormField(
+              controller: _emailController,
+              decoration: InputDecoration(labelText: 'Email'),
+              validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Please enter your email';
                   }
                   return null;
                 },
-              ),
-              SizedBox(height: 16),
-              TextFormField(
-                controller: _passwordController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: 'Password',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.lock),
-                ),
-                validator: (value) {
+            ),
+            TextFormField(
+              controller: _passwordController,
+              decoration: InputDecoration(labelText: 'Password'),
+              obscureText: true,
+              validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Please enter your password';
                   }
                   return null;
                 },
-              ),
-              SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _login,
-                  child: _isLoading
-                      ? CircularProgressIndicator(color: Colors.white)
-                      : Text('Login'),
-                ),
-              ),
-            ],
-          ),
+            ),
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: login,
+              child: Text('Login'),
+            ),
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: getProtectedData,
+              child: Text('Access Protected Data'),
+            ),
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: viewToken,
+              child: Text('View Token'),
+            ),
+          ],
         ),
       ),
     );

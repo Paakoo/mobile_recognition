@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:tes/screen/home_screen.dart';
 import 'package:tes/screen/liveness_screen.dart';
+import 'package:tes/screen/login_screen.dart';
+import 'package:tes/screen/map_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -17,10 +19,13 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      initialRoute: "/",
+      initialRoute: "/login",
       routes: {
-        "/": (context) => const HomeScreen(),
-        "/liveness": (context) => const LivenessScreen()
+        "/coba": (context) => CobaScreen(),
+        "/login": (context) => LoginScreen(),
+        "/home": (context) => HomeScreen(),
+        "/liveness": (context) => const LivenessScreen(),
+        "/map": (context) => MapScreen()
       },
     );
   }

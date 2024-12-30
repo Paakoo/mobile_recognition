@@ -12,6 +12,7 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 enum _FaceError { noFace, multiFace }
 
@@ -35,7 +36,9 @@ class _LivenessScreenState extends State<LivenessScreen>
 
   CameraController? _controller;
   CameraDescription? _camera;
-
+  
+  final _storage = FlutterSecureStorage();
+  
   final FaceDetector _faceDetector = FaceDetector(
     options: FaceDetectorOptions(
       enableContours: true,
@@ -49,14 +52,22 @@ class _LivenessScreenState extends State<LivenessScreen>
 
   late LivenessContext _livenessContext;
 
+  late int _currentStateIndex = 0;
+  
+  List<LivenessState> _getRandomizedStates() {
+    final states = [
+      FrontFaceState(5),
+      isLeftSideFaceState(1), 
+      isRightSideFaceState(1),
+      BlinkState(1)
+    ];
+    states.shuffle(); // Randomize order
+    return states;
+  }
+
   _LivenessScreenState() {
     _livenessContext = LivenessContext(
-      states: [
-        FrontFaceState(5),
-        isLeftSideFaceState(1),
-        isRightSideFaceState(1),   
-        BlinkState(1),   
-      ],
+      states: _getRandomizedStates(),
       stateChangeCallback: ({required next, required retry}) async {
         final file = await _takePhoto();
         if (file != null) {
@@ -85,9 +96,11 @@ class _LivenessScreenState extends State<LivenessScreen>
               compressedPhotos.add(bytes);
             }   
             try {
-              final uri = Uri.parse("http://192.168.1.20:5000/api/upload");
+              final token = await _storage.read(key: 'jwt_token');
+              final uri = Uri.parse("http://192.168.1.9:5000/api/upload");
               final request = http.MultipartRequest('POST', uri);   
               request.headers.addAll({
+                'Authorization': 'Bearer $token',
                 'Accept': 'application/json',
                 'Content-Type': 'multipart/form-data',
               });
@@ -102,8 +115,6 @@ class _LivenessScreenState extends State<LivenessScreen>
                 ),
               );
 
-              
-              request.fields['type'] = 'smile';
 
               final streamedResponse = await request.send();
               final response = await http.Response.fromStream(streamedResponse);   
@@ -112,7 +123,6 @@ class _LivenessScreenState extends State<LivenessScreen>
 
               if (response.statusCode == 200) {
                 final result = jsonDecode(response.body);
-                
                 if (mounted) {
                   Navigator.pushReplacement(
                     context,

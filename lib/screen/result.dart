@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart'; // Tambahkan ini
 
 class ResultScreen extends StatelessWidget {
   final Map<String, dynamic> result;
   final Uint8List imageBytes;
 
   const ResultScreen({
-    Key? key, 
+    Key? key,
     required this.result,
     required this.imageBytes,
   }) : super(key: key);
@@ -18,6 +19,13 @@ class ResultScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text('Verification Result'),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.logout),
+            onPressed: () => _logout(context),
+            tooltip: 'Logout',
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(16),
@@ -36,15 +44,34 @@ class ResultScreen extends StatelessWidget {
                 child: Column(
                   children: [
                     Text(
-                      'Status: ${result['status']?.toUpperCase() ?? 'Unknown'}',
+                      result['message'] ?? '',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: isSuccess ? Colors.green : Colors.red,
-                      ),
+                            color: isSuccess ? null : Colors.red,
+                            fontWeight: isSuccess ? null : FontWeight.bold,
+                          ),
                     ),
                     SizedBox(height: 10),
-                    if (isSuccess) ...[
+                    Text(
+                      'Status: ${result['status']?.toUpperCase() ?? 'Unknown'}',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            color: isSuccess ? Colors.green : Colors.red,
+                          ),
+                    ),
+                    SizedBox(height: 10),
+                    Text(
+                        'Face Name: ${result['data']['matched_name'] ?? 'Unknown'}',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      SizedBox(height: 10),
                       Text(
-                        'Name: ${result['data']['matched_name'] ?? 'Unknown'}',
+                        'Verified: ${result['data']['verified'] ?? 'Unknown'}',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: isSuccess ? Colors.green : Colors.red,
+                            ),
+                      ),
+                      SizedBox(height: 10),
+                      Text(
+                        'Account Name: ${result['data']['database_name'] ?? 'Unknown'}',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       SizedBox(height: 10),
@@ -52,15 +79,17 @@ class ResultScreen extends StatelessWidget {
                         'Confidence: ${(result['data']['confidence'] * 100).toStringAsFixed(2)}%',
                         style: Theme.of(context).textTheme.bodyLarge,
                       ),
-                    ],
-                    SizedBox(height: 10),
-                    Text(
-                      result['message'] ?? '',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: isSuccess ? null : Colors.red,
-                        fontWeight: isSuccess ? null : FontWeight.bold,
+                      SizedBox(height: 10),
+                      Text(
+                        'Spoof Confidence: ${(result['data']['spoof_confidence'] * 100).toStringAsFixed(2)}%',
+                        style: Theme.of(context).textTheme.bodyLarge,
                       ),
-                    ),
+                      SizedBox(height: 10),
+                      Text(
+                        'Is Real: ${(result['data']['is_real'] ?? 'Unknown')}',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                
                     SizedBox(height: 20),
                     Text(
                       'Processing Times:',
@@ -73,8 +102,8 @@ class ResultScreen extends StatelessWidget {
                       _buildTimingRow('Matching', result['timing']['matching']),
                       _buildTimingRow('Processing', result['timing']['processing']),
                       Divider(),
-                      _buildTimingRow('Total Time', result['timing']['total'], 
-                        style: TextStyle(fontWeight: FontWeight.bold)),
+                      _buildTimingRow('Total Time', result['timing']['total'],
+                          style: TextStyle(fontWeight: FontWeight.bold)),
                     ],
                   ],
                 ),
@@ -97,5 +126,24 @@ class ResultScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _logout(BuildContext context) async {
+    const storage = FlutterSecureStorage();
+
+    try {
+      // Hapus token dari penyimpanan
+      await storage.delete(key: 'jwt_token');
+
+      // Navigasi ke halaman login
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+    } catch (e) {
+      // Tampilkan pesan kesalahan jika logout gagal
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to logout. Please try again.'),
+        ),
+      );
+    }
   }
 }

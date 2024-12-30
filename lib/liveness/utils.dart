@@ -10,7 +10,7 @@ class DetectionUtils {
   static const double _rollThreshold = 15;
   static const double _sideYawMinThreshold = 30;
   static const double _sideYawMaxThreshold = 60;
-  static const double _blinkThreshold = 0.65;
+  static const double _blinkThreshold = 0.35;
 
   static bool isWholeFace(Face face, double imageWidth, double imageHeight) {
     final boundingBox = face.boundingBox;

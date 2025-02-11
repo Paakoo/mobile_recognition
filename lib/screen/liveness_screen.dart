@@ -13,6 +13,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:tes/screen/show_error.dart';
 
 enum _FaceError { noFace, multiFace }
 
@@ -23,8 +24,7 @@ class LivenessScreen extends StatefulWidget {
   State<LivenessScreen> createState() => _LivenessScreenState();
 }
 
-class _LivenessScreenState extends State<LivenessScreen>
-    with WidgetsBindingObserver {
+class _LivenessScreenState extends State<LivenessScreen> with WidgetsBindingObserver {
   _FaceError? _faceError;
   final _stateText = ValueNotifier("");
   bool _isProcessingImage = false;
@@ -97,8 +97,16 @@ class _LivenessScreenState extends State<LivenessScreen>
             }   
             try {
               final token = await _storage.read(key: 'jwt_token');
-              final uri = Uri.parse("http://192.168.1.9:5000/api/upload");
+
+              final uri = Uri.parse("http://172.20.10.2:5000/api/upload");
               final request = http.MultipartRequest('POST', uri);   
+
+              final timestamp = DateTime.now().millisecondsSinceEpoch;
+              final filename = 'upload_$timestamp.jpg';
+
+               // Add location data
+             
+
               request.headers.addAll({
                 'Authorization': 'Bearer $token',
                 'Accept': 'application/json',
@@ -110,7 +118,7 @@ class _LivenessScreenState extends State<LivenessScreen>
                 http.MultipartFile.fromBytes(
                   'file', 
                   compressedPhotos.last,
-                  filename: 'upload.jpg',
+                  filename:filename,
                   contentType: MediaType('image', 'jpeg'),
                 ),
               );
@@ -118,28 +126,62 @@ class _LivenessScreenState extends State<LivenessScreen>
 
               final streamedResponse = await request.send();
               final response = await http.Response.fromStream(streamedResponse);   
+              print('$token');
               print('Response status: ${response.statusCode}');
               print('Response body: ${response.body}');
 
               if (response.statusCode == 200) {
                 final result = jsonDecode(response.body);
-                if (mounted) {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ResultScreen(
-                        result: result,
-                        imageBytes: compressedPhotos.last,
-                      ),
-                    ),
-                  );
+                await VerificationHandler.handleResponse(
+                  context, 
+                  result,
+                  compressedPhotos.last
+                );
+              } else if (response.statusCode >= 400 && response.statusCode < 500) {
+                Map<String, dynamic> errorData;
+                try {
+                  errorData = jsonDecode(response.body);
+                } catch (e) {
+                  errorData = {
+                    'status': 'error',
+                    'message': 'Request failed with status: ${response.statusCode}',
+                    'error': {
+                      'code': response.statusCode,
+                      'details': response.body
+                    }
+                  };
                 }
+                await VerificationHandler.handleResponse(
+                  context,
+                  {
+                    'status': 'error',
+                    'message': errorData['message'] ?? 'Request failed',
+                    'data': {
+                      'error_code': response.statusCode,
+                      'error_details': errorData['error'] ?? 'Unknown error'
+                    }
+                  },
+                  compressedPhotos.last
+                );
               } else {
-                throw Exception('Upload failed: ${response.statusCode} - ${response.body}');
+                throw Exception('Server error: ${response.statusCode}');
               }
             } catch (e) {
               print('Error uploading: $e');
-              _showErrorDialog("Failed to upload photo: $e");
+              await VerificationHandler.handleResponse(
+                context,
+                {
+                  'status': 'error',
+                  'message': e.toString(),
+                  'data': {
+                    'error_code': 0,
+                    'error_details': 'Connection error'
+                  }
+                },
+                compressedPhotos.last
+              );
+            } finally {
+              setState(() => _isLoading = false);
             }
           } else {
             _showErrorDialog("Not enough photos captured");
@@ -353,29 +395,52 @@ class _LivenessScreenState extends State<LivenessScreen>
   
   bool _isLoading = false;
   Widget _buildLoadingOverlay() {
-  return Container(
-    color: Colors.black54,
-    child: Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+    return Container(
+      color: Colors.black.withOpacity(0.7),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                spreadRadius: 5,
+                blurRadius: 15,
+                offset: const Offset(0, 5),
+              ),
+            ],
           ),
-          SizedBox(height: 16),
-          Text(
-            'Processing...',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Processing...',
+                style: TextStyle(
+                  color: Colors.grey[800],
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              // const SizedBox(height: 8),
+              // Text(
+              //   'Please wait while we verify',
+              //   style: TextStyle(
+              //     color: Colors.grey[600],
+              //     fontSize: 14,
+              //   ),
+              // ),
+            ],
           ),
-        ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
 
 
@@ -402,7 +467,23 @@ class _LivenessScreenState extends State<LivenessScreen>
     if (cameraController == null || !cameraController.value.isInitialized) {
       return const SizedBox();
     } else {
-      return SizedBox(
+      return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: Colors.blue,  // Warna garis biru
+          width: 4.0,         // Ketebalan garis
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.withOpacity(0.3),  // Bayangan biru transparan
+            spreadRadius: 2,
+            blurRadius: 10,
+            offset: const Offset(0, 0),
+          ),
+        ],
+      ),
+      child: SizedBox(
         child: AspectRatio(
           aspectRatio: 1,
           child: ClipOval(
@@ -416,7 +497,8 @@ class _LivenessScreenState extends State<LivenessScreen>
             ),
           ),
         ),
-      );
+      ),
+    );
     }
   }
 
@@ -430,24 +512,32 @@ class _LivenessScreenState extends State<LivenessScreen>
             onPressed: () => Navigator.pop(context),
             icon: const Icon(Icons.arrow_back_ios_new_rounded)),
       ),
-      body: SizedBox.expand(
-        child: Column(
+      body: SafeArea(
+        child: Stack(
           children: [
-            ValueListenableBuilder(
-              valueListenable: _stateText,
-              builder: (context, value, child) {
-                return Text(
-                  value,
-                  style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: _faceError == null ? Colors.black : Colors.red),
-                );
-              },
+            Column(
+              children: [
+                ValueListenableBuilder(
+                  valueListenable: _stateText,
+                  builder: (context, value, child) {
+                    return Text(
+                      value,
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: _faceError == null ? Colors.black : Colors.red),
+                    );
+                  },
+                ),
+                const SizedBox(height: 30),
+                // FractionallySizedBox(widthFactor: 0.72, child: _cameraPreview())
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 70),
+                  child: _cameraPreview(),
+                ),
+              ],
             ),
             if (_isLoading) _buildLoadingOverlay(),
-            const SizedBox(height: 20),
-            FractionallySizedBox(widthFactor: 0.72, child: _cameraPreview()),
           ],
         ),
       ),

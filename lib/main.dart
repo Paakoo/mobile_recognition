@@ -1,9 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:tes/screen/home_screen.dart';
-import 'package:tes/screen/liveness_screen.dart';
-import 'package:tes/screen/login_screen.dart';
-import 'package:tes/screen/map_screen.dart';
-
+import 'package:tes/screen/screen.dart';
 void main() {
   runApp(const MyApp());
 }
@@ -16,16 +12,16 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Liveness',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      initialRoute: "/login",
+      initialRoute: "/",
       routes: {
-        "/coba": (context) => CobaScreen(),
+        "/": (context) => SplashScreen(),
         "/login": (context) => LoginScreen(),
-        "/home": (context) => HomeScreen(),
         "/liveness": (context) => const LivenessScreen(),
-        "/map": (context) => MapScreen()
+        "/main": (context) => HomeScreen(),
+        "/history": (context) => HistoryScreen(),
       },
     );
   }

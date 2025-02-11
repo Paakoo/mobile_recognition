@@ -11,9 +11,9 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   final Location _location = Location();
-  LatLng _manualLocation = LatLng(-7.767128656756583, 111.4553384756494); // Jakarta as example
+  LatLng _manualLocation = LatLng(-7.770137159682122, 111.482021377044); // Jakarta as example
   LatLng? _userLocation;
-  double _radius = 500.0; // Radius in meters
+  double _radius = 50.0; // Radius in meters
   bool _isUserWithinRadius = false;
 
   @override
